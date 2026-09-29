@@ -109,7 +109,7 @@ To update, copy `dmc_corona_boot.lua` and `dmc_corona/` again from the newer ver
 
 ## Reference
 
-`require 'dmc_corona.dmc_performance'` returns the module. Times are in milliseconds, from `system.getTimer()`, rounded to 5 decimals.
+`require 'dmc_corona.dmc_performance'` returns the module; its version is in `Perf.VERSION`. Times are in milliseconds, from `system.getTimer()`, rounded to 5 decimals.
 
 ### `Perf.markTime( marker, params )`
 
@@ -119,7 +119,7 @@ Records the time under the name `marker` and prints the time since the last mark
 MARK    : <marker>:  <ms since the last marker>  (T:<ms since the app started>)
 ```
 
-The first call also prints `Application Started`. `params` is optional:
+The first call also prints `Application Started`. A marker without a name prints as `(unnamed)`. `params` is optional:
 
 | param | default | effect |
 |---|---|---|
@@ -130,11 +130,13 @@ Nothing is printed when `OUTPUT_MARKERS` is off. A marker name used twice keeps 
 
 ### `Perf.markTimeDiff( marker1, marker2 )`
 
-Prints the time between two recorded markers, as a positive number:
+Prints the time between two recorded markers, as a positive number, and returns it:
 
 ```text
 MARK <d>: <marker1> <=> <marker2>  <d> <ms>
 ```
+
+A name that was never marked prints a warning instead (`WARNING: dmc_performance: markTimeDiff(): no marker named '<name>'`), even with `OUTPUT_MARKERS` off, and returns `nil`.
 
 ### `Perf.watchMemory( value )`
 
@@ -146,6 +148,8 @@ Starts or stops printing the memory in use (`Perf.memoryMonitor()`):
 | a number | every that many milliseconds |
 | `false` | stops the watch |
 
+One watch runs at a time: starting one stops the watch already running.
+
 ### `Perf.memoryMonitor( label )`
 
 Runs a full garbage collection, then prints the memory in use once: `M: <Lua memory in KB>  T: <texture memory in MB>`. A string `label` is printed on the line before.
@@ -156,8 +160,10 @@ The `[DMC_PERFORMANCE]` section of `dmc_corona.cfg` (see [dmc-corona-boot Config
 
 | key | values | default | effect |
 |---|---|---|---|
-| `OUTPUT_MARKERS:BOOL` | `true`, `false` | on | whether `markTime()` and `markTimeDiff()` print. Only `OUTPUT_MARKERS:BOOL = false` turns them off: without the `:BOOL` type, `false` is read as a string, which counts as on |
-| `MEMORY_ACTIVE` | `true`, a number, `false` | `false` | starts `watchMemory()` with this value when the module loads: every frame, or every that many milliseconds. Write it without a type (`MEMORY_ACTIVE = 1000`, or `MEMORY_ACTIVE:INT = 1000`): `MEMORY_ACTIVE:BOOL = true` does nothing |
+| `OUTPUT_MARKERS:BOOL` | `true`, `false` | `true` | whether `markTime()` and `markTimeDiff()` print |
+| `MEMORY_ACTIVE` | `true`, a number, `false` | `false` | starts `watchMemory()` with this value when the module loads: every frame, or every that many milliseconds (`MEMORY_ACTIVE:BOOL = true`, `MEMORY_ACTIVE:INT = 1000`) |
+
+The type can be left out (`OUTPUT_MARKERS = false`, `MEMORY_ACTIVE = 1000`): the values are read the same way.
 
 The `dmc_corona.cfg` in this repository turns the markers on and leaves the memory watch off:
 
@@ -169,14 +175,9 @@ OUTPUT_MARKERS:BOOL = true
 
 ## Known Issues
 
-- **Markers print unless turned off with the `:BOOL` type**: the default is the string `'false'`, which Lua counts as true. See [Configuration](#configuration).
-- **`MEMORY_ACTIVE:BOOL = true` doesn't start the watch**: only the strings `true` and `false` and numbers are understood.
-- `markTime()` without a name raises an error (`bad argument #2 to 'sformat'`) when it prints.
-- `markTimeDiff()` with a name that was never marked raises an error (`attempt to perform arithmetic on local 't1'`).
-- Calling `watchMemory()` with a number while a watch runs starts a second watch, and `watchMemory( false )` then stops only the second.
-- The memory monitor runs a full garbage collection each time: every frame, it slows the app down and frees memory that would otherwise still be counted.
-- `dmc_performance.lua` sets the global `_extend` (its copy of `Utils.extend()` declares the inner function without `local`).
-- Its version (`1.1.0`) isn't available to code.
+- The memory monitor runs a full garbage collection each time: every frame, it slows the app down and frees memory that would otherwise still be counted ([#1](https://github.com/dmccuskey/dmc-performance/issues/1)).
+
+The changes in each version are in the [CHANGELOG](CHANGELOG.md).
 
 ## Development
 
@@ -186,7 +187,13 @@ Only `dmc_corona/dmc_performance.lua` is written in this repository; it needs no
 snakemake --cores 1 build_all
 ```
 
-dmc-performance has no tests. The Quick Start is the check that it works in Solar2D.
+The unit tests run in plain Lua 5.1, with stand-ins for Solar2D's `system`, `timer` and `Runtime`:
+
+```sh
+tests/run_unit.sh
+```
+
+They need Lua 5.1 and dkjson; `LUA=` names the interpreter. The Quick Start is the check that it works in Solar2D.
 
 ## License
 
